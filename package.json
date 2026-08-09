@@ -1,0 +1,18 @@
+{
+  "name": "printerhub-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "postinstall": "npm run build -w @printerhub/contracts",
+    "dev": "npm run dev -w @printerhub/web",
+    "agent": "npm run dev -w @printerhub/agent",
+    "build": "npm run build -w @printerhub/contracts && npm run build -w @printerhub/web && npm run build -w @printerhub/agent",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w @printerhub/web",
+    "device:provision": "npm run device:provision -w @printerhub/web"
+  },
+  "engines": { "node": ">=20" }
+}
