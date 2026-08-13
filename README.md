@@ -2,6 +2,8 @@
 
 PrinterHub — MVP автономной точки печати. Пользователь сканирует QR‑код, открывает мобильный сайт, загружает PDF и следит за заданием. Mac Agent сам забирает задание по исходящему HTTPS‑соединению и передаёт его локальному CUPS. CUPS и Mac не публикуются в интернете.
 
+Экран аппарата открывается по адресу `/kiosk/{deviceId}`. На нём пользователь выбирает сайт или Telegram и получает QR‑код, уже привязанный к конкретному аппарату. Мобильная загрузка открывается по адресу `/print/{deviceId}`.
+
 ## Архитектура
 
 ```text
@@ -17,6 +19,8 @@ Mac Agent → HTTPS polling → API → CUPS → Brother
 - `packages/contracts` — общие схемы API и статусы
 
 PDF загружается напрямую в приватный Blob по подписанному URL. Backend и Agent независимо проверяют magic bytes, размер и число страниц. Оригинальное имя файла остаётся только в `sessionStorage` браузера.
+
+`deviceId` — стабильный уникальный slug аппарата, например `printer-001`. Он входит в kiosk/mobile URL, каждое задание и каждый запрос Agent. Backend проверяет устройство повторно, поэтому Agent забирает только задания со своим `deviceId`.
 
 ## Требования
 
@@ -39,6 +43,12 @@ npm install
 
 ```bash
 npm run dev
+```
+
+Экран первого аппарата:
+
+```text
+http://localhost:3000/kiosk/printer-001
 ```
 
 Локальный PIN по умолчанию — `123456`. Для своего значения скопируйте `apps/web/.env.example` в `apps/web/.env.local` и заполните секреты.
@@ -80,7 +90,7 @@ PRINTER_NAME=Brother_DCP_1600_series
 
 Agent проверяет очередь при запуске. Для команды `lp` он использует только A4 и односторонние параметры, которые реально объявлены `lpoptions`. Команда запускается без shell; пользовательские значения не становятся аргументами.
 
-Чтобы использовать другой принтер, измените `PRINTER_NAME`, `DEVICE_ID`, запись устройства в БД и QR‑ссылку. Каждому устройству нужен отдельный `DEVICE_TOKEN`.
+Чтобы добавить другой принтер, создайте новую запись устройства с новым `DEVICE_ID`, настройте отдельный Agent и откройте `/kiosk/{deviceId}` на его touchscreen. У каждого аппарата должны быть свои `DEVICE_ID`, `DEVICE_TOKEN` и CUPS queue. Перенастраивать уже работающие аппараты не нужно.
 
 ## Production database
 
@@ -98,6 +108,12 @@ DEVICE_ID=printer-001 PRINTER_NAME=Brother_DCP_1600_series npm run device:provis
 
 Команда показывает plaintext token один раз. Сохраните его только в `apps/agent/.env.local` с правами `0600` и не добавляйте в Git.
 
+Для второго аппарата выполните ту же команду с другим идентификатором и очередью:
+
+```bash
+DEVICE_ID=printer-002 PRINTER_NAME=Second_Printer_Queue npm run device:provision
+```
+
 ## Переменные окружения
 
 Web/Vercel:
@@ -109,6 +125,7 @@ Web/Vercel:
 - `REQUEST_HASH_SECRET` — HMAC технических rate-limit идентификаторов
 - `KIOSK_PIN` — общий PIN пилотной точки, минимум 6 символов
 - `CRON_SECRET` — защита endpoint очистки
+- `NEXT_PUBLIC_TELEGRAM_BOT_URL` — необязательная HTTPS‑ссылка на бота, например `https://t.me/printerhub_bot`; kiosk добавляет `start={deviceId}` автоматически
 
 Mac Agent:
 
