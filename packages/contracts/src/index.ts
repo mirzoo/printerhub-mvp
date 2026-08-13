@@ -1,9 +1,15 @@
 import { z } from "zod";
 
-export const DEVICE_ID = "printer-001";
+export const DEFAULT_DEVICE_ID = "printer-001";
 export const MAX_FILE_SIZE = 20 * 1024 * 1024;
 export const MAX_PAGES = 100;
 export const MAX_COPIES = 10;
+
+export const deviceIdSchema = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/);
 
 export const printModeSchema = z.enum(["dry-run", "real"]);
 export type PrintMode = z.infer<typeof printModeSchema>;
@@ -25,13 +31,13 @@ export const terminalStatuses: ReadonlySet<JobStatus> = new Set([
 ]);
 
 export const jobCreateSchema = z.object({
-  deviceId: z.string().min(1).max(64),
+  deviceId: deviceIdSchema,
   pathname: z.string().uuid(),
   copies: z.number().int().min(1).max(MAX_COPIES),
 });
 
 export const heartbeatSchema = z.object({
-  deviceId: z.string().min(1).max(64),
+  deviceId: deviceIdSchema,
   printMode: printModeSchema,
   printerState: z.enum(["idle", "processing", "stopped", "unavailable"]),
   printerStateReasons: z.array(z.string().max(120)).max(20),
