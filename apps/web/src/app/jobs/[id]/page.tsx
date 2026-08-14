@@ -16,6 +16,7 @@ const rank: Record<JobStatus, number> = { queued: 0, claimed: 1, printing: 2, co
 const errorText: Record<string, string> = {
   DOWNLOAD_FAILED: "Не удалось получить документ. Попробуйте ещё раз",
   INVALID_PDF: "Документ не прошёл проверку PDF",
+  PDFINFO_UNAVAILABLE: "Проверка PDF не запущена. Обратитесь к оператору",
   PAGE_COUNT_MISMATCH: "Количество страниц документа изменилось при проверке",
   PRINTER_UNAVAILABLE: "Принтер сейчас недоступен",
   PRINT_COMMAND_FAILED: "Принтер не принял задание",
@@ -51,9 +52,10 @@ export default function JobPage() {
   }, [id]);
 
   const failed = job?.status === "failed" || job?.status === "expired";
+  const multipleDocuments = /^\d+ документ/.test(name);
   return <main className="shell">
     <div className="brand"><span className="brand-mark">P</span> PrinterHub</div>
-    <h1>{failed ? "Не удалось распечатать" : job?.status === "completed" ? "Документ готов" : "Печатаем документ"}</h1>
+    <h1>{failed ? "Не удалось распечатать" : job?.status === "completed" ? multipleDocuments ? "Документы готовы" : "Документ готов" : multipleDocuments ? "Печатаем документы" : "Печатаем документ"}</h1>
     <p className="lead file-name">{name}</p>
     <section className="card stack status-card">
       {loadError ? <p className="error" role="alert">{loadError}</p> : !job ? <div className="skeleton" /> : failed ? <>

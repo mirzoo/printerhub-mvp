@@ -4,6 +4,9 @@ export const DEFAULT_DEVICE_ID = "printer-001";
 export const MAX_FILE_SIZE = 20 * 1024 * 1024;
 export const MAX_PAGES = 100;
 export const MAX_COPIES = 10;
+export const MAX_DOCUMENTS = 5;
+export const PRICE_PER_BW_PAGE_MINOR = 100;
+export const CURRENCY = "TJS" as const;
 
 export const deviceIdSchema = z
   .string()
@@ -36,6 +39,39 @@ export const jobCreateSchema = z.object({
   copies: z.number().int().min(1).max(MAX_COPIES),
 });
 
+export const orderDocumentSchema = z.object({
+  pathname: z.string().uuid(),
+  selectedPages: z.array(z.number().int().min(1).max(MAX_PAGES)).min(1).max(MAX_PAGES)
+    .refine((pages) => new Set(pages).size === pages.length),
+});
+
+export const orderCreateSchema = z.object({
+  deviceId: deviceIdSchema,
+  documents: z.array(orderDocumentSchema).min(1).max(MAX_DOCUMENTS),
+  copies: z.number().int().min(1).max(MAX_COPIES),
+  colorMode: z.literal("bw"),
+  duplex: z.literal(false),
+  paperSize: z.literal("A4"),
+}).refine((value) => new Set(value.documents.map((document) => document.pathname)).size === value.documents.length, {
+  message: "Document pathnames must be unique",
+});
+
+export const mockPaymentSchema = z.object({ outcome: z.enum(["success", "failed"]) });
+
+export const orderStatusSchema = z.enum(["awaiting_payment", "paid", "printing", "completed", "failed", "expired"]);
+export type OrderStatus = z.infer<typeof orderStatusSchema>;
+export const paymentStatusSchema = z.enum(["pending", "paid", "failed"]);
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+
+export type Quote = {
+  selectedPages: number;
+  copies: number;
+  totalSheets: number;
+  unitPriceMinor: number;
+  totalPriceMinor: number;
+  currency: typeof CURRENCY;
+};
+
 export const heartbeatSchema = z.object({
   deviceId: deviceIdSchema,
   printMode: printModeSchema,
@@ -49,6 +85,7 @@ export const agentUpdateSchema = z.object({
   errorCode: z.enum([
     "DOWNLOAD_FAILED",
     "INVALID_PDF",
+    "PDFINFO_UNAVAILABLE",
     "PAGE_COUNT_MISMATCH",
     "PRINTER_UNAVAILABLE",
     "PRINT_COMMAND_FAILED",

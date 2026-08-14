@@ -1,4 +1,4 @@
-import { del, get, issueSignedToken, list, presignUrl } from "@vercel/blob";
+import { del, get, issueSignedToken, list, presignUrl, put } from "@vercel/blob";
 import { MAX_FILE_SIZE } from "@printerhub/contracts";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -40,6 +40,12 @@ export async function writeLocalUpload(pathname: string, bytes: Uint8Array) {
   if (bytes.length > MAX_FILE_SIZE) throw new Error("File too large");
   await mkdir(localRoot, { recursive: true });
   await writeFile(localPath(pathname), bytes, { flag: "wx", mode: 0o600 });
+}
+
+export async function writeUpload(pathname: string, bytes: Uint8Array) {
+  if (bytes.length > MAX_FILE_SIZE) throw new Error("File too large");
+  if (config.storageDriver === "local") return writeLocalUpload(pathname, bytes);
+  await put(pathname, Buffer.from(bytes), { access: "private", contentType: "application/pdf", addRandomSuffix: false });
 }
 
 export async function deleteUpload(pathname: string): Promise<void> {
