@@ -67,7 +67,7 @@ async function processJob(job: ClaimedJob) {
 }
 
 function normalizeError(error: unknown) {
-  const known = new Set(["DOWNLOAD_FAILED", "INVALID_PDF", "PAGE_COUNT_MISMATCH", "PRINT_TIMEOUT"]);
+  const known = new Set(["DOWNLOAD_FAILED", "INVALID_PDF", "PDFINFO_UNAVAILABLE", "PAGE_COUNT_MISMATCH", "PRINT_TIMEOUT"]);
   const message = error instanceof Error ? error.message : "";
   return known.has(message) ? message : message === "lp failed" ? "PRINT_COMMAND_FAILED" : "INTERNAL_ERROR";
 }

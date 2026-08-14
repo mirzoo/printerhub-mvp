@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canTransition, deviceIdSchema, jobCreateSchema } from "./index.js";
+import { canTransition, deviceIdSchema, jobCreateSchema, orderCreateSchema } from "./index.js";
 
 describe("job contracts", () => {
   it("allows only state-machine transitions", () => {
@@ -15,5 +15,19 @@ describe("job contracts", () => {
     expect(deviceIdSchema.safeParse("printer-001").success).toBe(true);
     expect(deviceIdSchema.safeParse("PRINTER-001").success).toBe(false);
     expect(deviceIdSchema.safeParse("../printer-001").success).toBe(false);
+  });
+
+  it("accepts multiple unique documents with selected pages", () => {
+    expect(orderCreateSchema.safeParse({
+      deviceId: "printer-001",
+      documents: [
+        { pathname: crypto.randomUUID(), selectedPages: [1, 3] },
+        { pathname: crypto.randomUUID(), selectedPages: [1] },
+      ],
+      copies: 2,
+      colorMode: "bw",
+      duplex: false,
+      paperSize: "A4",
+    }).success).toBe(true);
   });
 });

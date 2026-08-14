@@ -17,6 +17,10 @@ export function createOpaqueToken(bytes = 32): string {
   return randomBytes(bytes).toString("base64url");
 }
 
+export function createOrderJobToken(orderId: string): string {
+  return createHmac("sha256", config.sessionSecret).update(`order-job:${orderId}`).digest("base64url");
+}
+
 export function createSession(): { value: string; session: Session } {
   const session = { id: createOpaqueToken(18), exp: Date.now() + 30 * 60_000 };
   const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
