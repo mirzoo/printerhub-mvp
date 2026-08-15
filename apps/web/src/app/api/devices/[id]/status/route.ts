@@ -10,5 +10,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!parsed.success) return Response.json({ message: "Некорректный номер аппарата" }, { status: 400 });
   const device = await getDevice(parsed.data);
   if (!device) return Response.json({ deviceId: parsed.data, message: "Аппарат не найден" }, { status: 404 });
-  return Response.json({ deviceId: parsed.data, available: deviceAvailable(device), printMode: device.printMode, lastSeen: device.lastSeen });
+  const recentlySeen = Boolean(device.lastSeen && Date.now() - new Date(device.lastSeen).getTime() <= 45_000);
+  return Response.json({ deviceId: parsed.data, available: deviceAvailable(device), printMode: device.printMode, lastSeen: device.lastSeen, scannerAvailable: recentlySeen && device.scannerState === "idle", scannerState: recentlySeen ? device.scannerState : "unavailable", scannerStateReason: recentlySeen ? device.scannerStateReason : "agent-offline" });
 }

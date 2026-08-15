@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canTransition, deviceIdSchema, jobCreateSchema, orderCreateSchema } from "./index.js";
+import { canTransition, copyCheckoutSchema, deviceIdSchema, jobCreateSchema, orderCreateSchema } from "./index.js";
 
 describe("job contracts", () => {
   it("allows only state-machine transitions", () => {
@@ -29,5 +29,10 @@ describe("job contracts", () => {
       duplex: false,
       paperSize: "A4",
     }).success).toBe(true);
+  });
+
+  it("limits copy checkout to supported copy counts", () => {
+    expect(copyCheckoutSchema.safeParse({ copies: 10 }).success).toBe(true);
+    expect(copyCheckoutSchema.safeParse({ copies: 11 }).success).toBe(false);
   });
 });

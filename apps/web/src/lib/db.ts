@@ -11,7 +11,7 @@ function memory(): MemoryState {
     globalState.__printerhub = { devices: new Map(), jobs: new Map(), orders: new Map(), access: [] };
     globalState.__printerhub.devices.set("printer-001", {
       id: "printer-001", tokenHash: "", cupsQueue: "Brother_DCP_1600_series", lastSeen: null,
-      printMode: null, printerState: "unavailable", printerStateReasons: [],
+      printMode: null, printerState: "unavailable", printerStateReasons: [], scannerState: "unavailable", scannerStateReason: "not-configured",
     });
   }
   globalState.__printerhub.orders ??= new Map();
@@ -24,7 +24,7 @@ function sql() {
 }
 
 function mapDevice(row: Record<string, unknown>): DeviceRecord {
-  return { id: String(row.id), tokenHash: String(row.token_hash), cupsQueue: String(row.cups_queue), lastSeen: row.last_seen ? new Date(String(row.last_seen)).toISOString() : null, printMode: row.print_mode as DeviceRecord["printMode"], printerState: row.printer_state as DeviceRecord["printerState"], printerStateReasons: (row.printer_state_reasons as string[]) ?? [] };
+  return { id: String(row.id), tokenHash: String(row.token_hash), cupsQueue: String(row.cups_queue), lastSeen: row.last_seen ? new Date(String(row.last_seen)).toISOString() : null, printMode: row.print_mode as DeviceRecord["printMode"], printerState: row.printer_state as DeviceRecord["printerState"], printerStateReasons: (row.printer_state_reasons as string[]) ?? [], scannerState: (row.scanner_state as DeviceRecord["scannerState"]) ?? "unavailable", scannerStateReason: row.scanner_state_reason ? String(row.scanner_state_reason) : null };
 }
 
 function mapJob(row: Record<string, unknown>): JobRecord {
@@ -72,7 +72,7 @@ export async function getDevice(id: string): Promise<DeviceRecord | null> {
 export async function heartbeatDevice(device: DeviceRecord): Promise<void> {
   const now = new Date().toISOString();
   if (!config.databaseUrl) { memory().devices.set(device.id, { ...device, lastSeen: now }); return; }
-  await sql()`UPDATE devices SET last_seen = now(), print_mode = ${device.printMode}, printer_state = ${device.printerState}, printer_state_reasons = ${device.printerStateReasons}, cups_queue = ${device.cupsQueue}, updated_at = now() WHERE id = ${device.id}`;
+  await sql()`UPDATE devices SET last_seen = now(), print_mode = ${device.printMode}, printer_state = ${device.printerState}, printer_state_reasons = ${device.printerStateReasons}, scanner_state = ${device.scannerState}, scanner_state_reason = ${device.scannerStateReason}, cups_queue = ${device.cupsQueue}, updated_at = now() WHERE id = ${device.id}`;
 }
 
 export async function countSessionJobs(sessionHash: string): Promise<{ recent: number; active: number }> {

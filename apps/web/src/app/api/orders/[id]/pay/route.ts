@@ -6,15 +6,19 @@ import { mergePdfPages } from "@/lib/pdf";
 import { getSession, safeJson, unauthorized } from "@/lib/request";
 import { createOrderJobToken, hashToken, requesterHash } from "@/lib/security";
 import { deleteUpload, readUpload, writeUpload } from "@/lib/storage";
+import { clearCopyPdfReference, clearCopyPreviewReference, getCopySessionByOrder, listCopyPages } from "@/lib/copy-db";
 import type { JobRecord } from "@/lib/types";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const session = getSession(request);
-  if (!session) return unauthorized();
   const { id } = await context.params;
   const order = await getOrder(id);
+  const session = getSession(request);
+  const copySession = await getCopySessionByOrder(id);
+  const copyToken = request.headers.get("x-copy-token") ?? "";
+  const authorizedSessionHash = copySession && hashToken(copyToken) === copySession.statusTokenHash ? requesterHash(copyToken) : session ? requesterHash(session.id) : null;
+  if (!authorizedSessionHash) return unauthorized();
   const orderToken = request.headers.get("x-order-token") ?? "";
-  if (!order || hashToken(orderToken) !== order.statusTokenHash || requesterHash(session.id) !== order.sessionHash) return Response.json({ message: "Заказ не найден" }, { status: 404 });
+  if (!order || hashToken(orderToken) !== order.statusTokenHash || authorizedSessionHash !== order.sessionHash) return Response.json({ message: "Заказ не найден" }, { status: 404 });
   const parsed = mockPaymentSchema.safeParse(await safeJson(request));
   if (!parsed.success) return Response.json({ message: "Не удалось проверить результат оплаты" }, { status: 400 });
 
@@ -36,6 +40,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       if (!document.blobPathname) throw new Error("DOCUMENT_MISSING");
       inputs.push({ bytes: await readUpload(document.blobPathname), selectedPages: document.selectedPages });
     }
+    if (copySession) {
+      for (const page of await listCopyPages(copySession.id, true)) {
+        if (!page.previewPathname) continue;
+        try { await deleteUpload(page.previewPathname); await clearCopyPreviewReference(page.previewPathname); } catch { /* cron retries */ }
+      }
+    }
     const combined = await mergePdfPages(inputs);
     if (combined.length > MAX_FILE_SIZE) throw new Error("INVALID_SIZE");
     combinedPathname = crypto.randomUUID();
@@ -51,7 +61,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (!completed) throw new Error("PAYMENT_CONFLICT");
     for (const document of order.documents) {
       if (!document.blobPathname) continue;
-      try { await deleteUpload(document.blobPathname); await markOrderDocumentCleaned(document.id); } catch { /* cron retries */ }
+      try { await deleteUpload(document.blobPathname); await markOrderDocumentCleaned(document.id); await clearCopyPdfReference(document.blobPathname); } catch { /* cron retries */ }
     }
     return Response.json({ jobId, jobToken, status: "queued" });
   } catch {

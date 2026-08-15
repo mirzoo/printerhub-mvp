@@ -1,4 +1,4 @@
-import type { JobStatus, OrderStatus, PaymentStatus, PrintMode } from "@printerhub/contracts";
+import type { CopyPageStatus, CopySessionStatus, JobStatus, OrderStatus, PaymentStatus, PrintMode, ScanError } from "@printerhub/contracts";
 
 export type DeviceRecord = {
   id: string;
@@ -8,6 +8,32 @@ export type DeviceRecord = {
   printMode: PrintMode | null;
   printerState: "idle" | "processing" | "stopped" | "unavailable";
   printerStateReasons: string[];
+  scannerState: "idle" | "busy" | "unavailable";
+  scannerStateReason: string | null;
+};
+
+export type CopySessionRecord = {
+  id: string;
+  deviceId: string;
+  status: CopySessionStatus;
+  statusTokenHash: string;
+  orderId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+};
+
+export type CopyPageRecord = {
+  id: string;
+  sessionId: string;
+  position: number;
+  status: CopyPageStatus;
+  previewPathname: string | null;
+  pdfPathname: string | null;
+  errorCode: ScanError | null;
+  leaseExpiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type JobRecord = {
