@@ -13,7 +13,7 @@ export async function createUploadUrl(pathname: string, origin: string): Promise
     return `${origin}/api/uploads/local/${pathname}?token=${encodeURIComponent(signUpload(pathname, validUntil))}`;
   }
   const signedToken = await issueSignedToken({ pathname, operations: ["put"], validUntil, allowedContentTypes: ["application/pdf"], maximumSizeInBytes: MAX_FILE_SIZE });
-  const { presignedUrl } = await presignUrl(signedToken, { operation: "put", pathname, access: "private", validUntil, allowedContentTypes: ["application/pdf"], maximumSizeInBytes: MAX_FILE_SIZE });
+  const { presignedUrl } = await presignUrl(signedToken, { operation: "put", pathname, access: "private", validUntil, allowedContentTypes: ["application/pdf"], maximumSizeInBytes: MAX_FILE_SIZE, addRandomSuffix: false });
   return presignedUrl;
 }
 
