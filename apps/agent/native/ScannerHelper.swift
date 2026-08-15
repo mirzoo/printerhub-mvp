@@ -8,7 +8,9 @@ final class ScannerHelper: NSObject, ICDeviceBrowserDelegate, ICScannerDeviceDel
     private let outputURL: URL?
     private let probeOnly: Bool
     private var matchingScanners: [ICScannerDevice] = []
+    private var activeScanner: ICScannerDevice?
     private var scannedURL: URL?
+    private var scanRequested = false
     private var finished = false
 
     init(scannerName: String?, outputURL: URL?, probeOnly: Bool) {
@@ -29,9 +31,11 @@ final class ScannerHelper: NSObject, ICDeviceBrowserDelegate, ICScannerDeviceDel
     func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
         guard let scanner = device as? ICScannerDevice else { return }
         if scannerName == nil || (scanner.name?.localizedCaseInsensitiveContains(scannerName!) ?? false) {
-            matchingScanners.append(scanner)
+            if !matchingScanners.contains(where: { $0 === scanner }) {
+                matchingScanners.append(scanner)
+            }
         }
-        if !moreComing { selectScanner() }
+        if !moreComing { selectScanner(allowUnavailable: false) }
     }
 
     func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
@@ -39,16 +43,21 @@ final class ScannerHelper: NSObject, ICDeviceBrowserDelegate, ICScannerDeviceDel
     }
 
     func deviceBrowserDidEnumerateLocalDevices(_ browser: ICDeviceBrowser) {
-        selectScanner()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.selectScanner(allowUnavailable: true)
+        }
     }
 
-    private func selectScanner() {
-        guard !finished else { return }
+    private func selectScanner(allowUnavailable: Bool) {
+        guard !finished, activeScanner == nil else { return }
         if matchingScanners.count > 1 && scannerName == nil { finish(code: "SCANNER_AMBIGUOUS", exitCode: 4) }
-        guard let scanner = matchingScanners.first else { finish(code: "SCANNER_UNAVAILABLE", exitCode: 3) }
+        guard let scanner = matchingScanners.first else {
+            if allowUnavailable { finish(code: "SCANNER_UNAVAILABLE", exitCode: 3) }
+            return
+        }
         if probeOnly { finish(code: "OK", exitCode: 0, name: scanner.name ?? "Scanner") }
         guard outputURL != nil else { finish(code: "SCAN_FAILED", exitCode: 2) }
-        finished = true
+        activeScanner = scanner
         scanner.delegate = self
         scanner.requestOpenSession()
     }
@@ -56,18 +65,37 @@ final class ScannerHelper: NSObject, ICDeviceBrowserDelegate, ICScannerDeviceDel
     func device(_ device: ICDevice, didOpenSessionWithError error: Error?) {
         guard let scanner = device as? ICScannerDevice else { finish(code: "SCAN_FAILED", exitCode: 2) }
         if error != nil { finish(code: "SCANNER_BUSY", exitCode: 5) }
-        guard scanner.availableFunctionalUnitTypes.contains(NSNumber(value: ICScannerFunctionalUnitType.flatbed.rawValue)) else { finish(code: "SCANNER_UNAVAILABLE", exitCode: 3) }
-        scanner.requestSelect(.flatbed)
+        configureAndScan(scanner: scanner, functionalUnit: scanner.selectedFunctionalUnit, attemptsRemaining: 60)
     }
 
     func device(_ device: ICDevice, didCloseSessionWithError error: Error?) {}
 
     func didRemove(_ device: ICDevice) {
-        finish(code: "SCANNER_UNAVAILABLE", exitCode: 3)
+        guard device === activeScanner else { return }
+        activeScanner = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.selectScanner(allowUnavailable: true)
+        }
     }
 
     func scannerDevice(_ scanner: ICScannerDevice, didSelect functionalUnit: ICScannerFunctionalUnit, error: Error?) {
         if error != nil { finish(code: "SCAN_FAILED", exitCode: 2) }
+        configureAndScan(scanner: scanner, functionalUnit: functionalUnit, attemptsRemaining: 60)
+    }
+
+    private func configureAndScan(scanner: ICScannerDevice, functionalUnit: ICScannerFunctionalUnit, attemptsRemaining: Int) {
+        guard !scanRequested else { return }
+        guard !functionalUnit.supportedResolutions.isEmpty,
+              functionalUnit.physicalSize.width > 0,
+              functionalUnit.physicalSize.height > 0 else {
+            guard attemptsRemaining > 0 else { finish(code: "SCAN_TIMEOUT", exitCode: 6) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self, weak scanner, weak functionalUnit] in
+                guard let self, let scanner, let functionalUnit else { return }
+                self.configureAndScan(scanner: scanner, functionalUnit: functionalUnit, attemptsRemaining: attemptsRemaining - 1)
+            }
+            return
+        }
+        scanRequested = true
         functionalUnit.measurementUnit = .inches
         let resolutions = functionalUnit.supportedResolutions.map { $0 }
         functionalUnit.resolution = resolutions.min(by: { abs($0 - 300) < abs($1 - 300) }) ?? 300
@@ -83,11 +111,17 @@ final class ScannerHelper: NSObject, ICDeviceBrowserDelegate, ICScannerDeviceDel
 
     func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
         scannedURL = url
+        completeScan(scanner: scanner, scannedURL: url)
     }
 
     func scannerDevice(_ scanner: ICScannerDevice, didCompleteScanWithError error: Error?) {
         if error != nil { finish(code: "SCAN_FAILED", exitCode: 2) }
-        guard let scannedURL, let outputURL else { finish(code: "SCAN_FAILED", exitCode: 2) }
+        guard let scannedURL else { finish(code: "SCAN_FAILED", exitCode: 2) }
+        completeScan(scanner: scanner, scannedURL: scannedURL)
+    }
+
+    private func completeScan(scanner: ICScannerDevice, scannedURL: URL) {
+        guard let outputURL else { finish(code: "SCAN_FAILED", exitCode: 2) }
         do {
             if scannedURL.standardizedFileURL != outputURL.standardizedFileURL {
                 try? FileManager.default.removeItem(at: outputURL)
