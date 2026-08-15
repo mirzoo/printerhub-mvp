@@ -55,10 +55,10 @@ export async function submitPrint(queue: string, copies: number, filePath: strin
   return jobId;
 }
 
-export async function waitForPrint(jobId: string, timeoutMs = 10 * 60_000): Promise<void> {
+export async function waitForPrint(queue: string, jobId: string, timeoutMs = 10 * 60_000): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const pending = await command("lpstat", ["-W", "not-completed", "-o", jobId], 10_000);
+    const pending = await command("lpstat", ["-W", "not-completed", "-o", queue], 10_000);
     if (pending.code === 0 && !pending.stdout.includes(jobId)) return;
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }

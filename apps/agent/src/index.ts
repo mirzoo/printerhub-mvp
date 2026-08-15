@@ -54,7 +54,7 @@ async function processJob(job: ClaimedJob) {
       return;
     }
     const cupsJobId = await submitPrint(config.printerName, job.copies, filePath);
-    await waitForPrint(cupsJobId);
+    await waitForPrint(config.printerName, cupsJobId);
     await updateJob(job.id, { status: "completed", cupsJobId });
   } catch (error) {
     const code = normalizeError(error);
