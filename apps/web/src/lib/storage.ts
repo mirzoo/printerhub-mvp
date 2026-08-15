@@ -1,5 +1,5 @@
 import { del, get, issueSignedToken, list, presignUrl, put } from "@vercel/blob";
-import { MAX_FILE_SIZE } from "@printerhub/contracts";
+import { MAX_FILE_SIZE, MAX_SCAN_PAGE_SIZE } from "@printerhub/contracts";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
@@ -14,6 +14,14 @@ export async function createUploadUrl(pathname: string, origin: string): Promise
   }
   const signedToken = await issueSignedToken({ pathname, operations: ["put"], validUntil, allowedContentTypes: ["application/pdf"], maximumSizeInBytes: MAX_FILE_SIZE });
   const { presignedUrl } = await presignUrl(signedToken, { operation: "put", pathname, access: "private", validUntil, allowedContentTypes: ["application/pdf"], maximumSizeInBytes: MAX_FILE_SIZE, addRandomSuffix: false });
+  return presignedUrl;
+}
+
+export async function createScanUploadUrl(pathname: string, origin: string): Promise<string> {
+  const validUntil = Date.now() + 5 * 60_000;
+  if (config.storageDriver === "local") return `${origin}/api/uploads/local/${pathname}?kind=scan&token=${encodeURIComponent(signUpload(pathname, validUntil))}`;
+  const signedToken = await issueSignedToken({ pathname, operations: ["put"], validUntil, allowedContentTypes: ["image/jpeg"], maximumSizeInBytes: MAX_SCAN_PAGE_SIZE });
+  const { presignedUrl } = await presignUrl(signedToken, { operation: "put", pathname, access: "private", validUntil, allowedContentTypes: ["image/jpeg"], maximumSizeInBytes: MAX_SCAN_PAGE_SIZE, addRandomSuffix: false });
   return presignedUrl;
 }
 
@@ -36,10 +44,10 @@ export async function readUpload(pathname: string): Promise<Uint8Array> {
   return bytes;
 }
 
-export async function writeLocalUpload(pathname: string, bytes: Uint8Array) {
-  if (bytes.length > MAX_FILE_SIZE) throw new Error("File too large");
+export async function writeLocalUpload(pathname: string, bytes: Uint8Array, maxSize = MAX_FILE_SIZE, overwrite = false) {
+  if (bytes.length > maxSize) throw new Error("File too large");
   await mkdir(localRoot, { recursive: true });
-  await writeFile(localPath(pathname), bytes, { flag: "wx", mode: 0o600 });
+  await writeFile(localPath(pathname), bytes, { flag: overwrite ? "w" : "wx", mode: 0o600 });
 }
 
 export async function writeUpload(pathname: string, bytes: Uint8Array) {

@@ -15,6 +15,7 @@ export default function CheckoutPage() {
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [names, setNames] = useState<string[]>([]);
   const [token, setToken] = useState("");
+  const [copyToken, setCopyToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,6 +23,7 @@ export default function CheckoutPage() {
     const nextToken = window.location.hash.slice(1);
     const timer = window.setTimeout(() => {
       setToken(nextToken);
+      setCopyToken(sessionStorage.getItem(`printerhub:copy-order:${id}`) ?? "");
       try { setNames(JSON.parse(sessionStorage.getItem(`printerhub:order:${id}`) ?? "[]") as string[]); } catch { setNames([]); }
     }, 0);
     if (!nextToken) { window.setTimeout(() => setError("Ссылка на заказ неполная"), 0); return () => window.clearTimeout(timer); }
@@ -35,7 +37,7 @@ export default function CheckoutPage() {
     if (!token) return;
     setBusy(true); setError("");
     try {
-      const response = await fetch(`/api/orders/${id}/pay`, { method: "POST", headers: { "content-type": "application/json", "x-order-token": token }, body: JSON.stringify({ outcome }) });
+      const response = await fetch(`/api/orders/${id}/pay`, { method: "POST", headers: { "content-type": "application/json", "x-order-token": token, ...(copyToken ? { "x-copy-token": copyToken } : {}) }, body: JSON.stringify({ outcome }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? "Оплата не прошла");
       sessionStorage.setItem(`printerhub:file:${result.jobId}`, names.length > 1 ? `${names.length} документа` : names[0] ?? "Документ PDF");

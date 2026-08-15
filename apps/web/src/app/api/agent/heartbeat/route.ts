@@ -9,6 +9,6 @@ export async function POST(request: NextRequest) {
   if (!device) return Response.json({ message: "Unauthorized" }, { status: 401 });
   const parsed = heartbeatSchema.safeParse(await safeJson(request));
   if (!parsed.success || parsed.data.deviceId !== device.id) return Response.json({ message: "Invalid heartbeat" }, { status: 400 });
-  await heartbeatDevice({ ...device, printMode: parsed.data.printMode, printerState: parsed.data.printerState, printerStateReasons: parsed.data.printerStateReasons });
+  await heartbeatDevice({ ...device, printMode: parsed.data.printMode, printerState: parsed.data.printerState, printerStateReasons: parsed.data.printerStateReasons, scannerState: parsed.data.scannerState, scannerStateReason: parsed.data.scannerStateReason });
   return Response.json({ ok: true });
 }

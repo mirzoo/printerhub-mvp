@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { QrCode } from "./qr-code";
+import { CopyFlow } from "./copy-flow";
 
-type Method = "web" | "telegram";
-type PrinterStatus = { available: boolean; printMode: "dry-run" | "real" | null };
+type Method = "web" | "telegram" | "copy";
+type PrinterStatus = { available: boolean; printMode: "dry-run" | "real" | null; scannerAvailable: boolean; scannerState: "idle" | "busy" | "unavailable" };
 
 export function KioskScreen({ deviceId }: { deviceId: string }) {
   const [method, setMethod] = useState<Method | null>(null);
   const [origin, setOrigin] = useState("");
   const [printer, setPrinter] = useState<PrinterStatus | null>(null);
+  const [copySession, setCopySession] = useState<{ id: string; token: string } | null>(null);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copyError, setCopyError] = useState("");
 
   useEffect(() => {
     const timer = window.setTimeout(() => setOrigin(window.location.origin), 0);
@@ -20,7 +24,7 @@ export function KioskScreen({ deviceId }: { deviceId: string }) {
     const loadStatus = () => fetch(`/api/devices/${encodeURIComponent(deviceId)}/status`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<PrinterStatus> : Promise.reject())
       .then(setPrinter)
-      .catch(() => setPrinter({ available: false, printMode: null }));
+      .catch(() => setPrinter({ available: false, printMode: null, scannerAvailable: false, scannerState: "unavailable" }));
     void loadStatus();
     const timer = window.setInterval(loadStatus, 15_000);
     return () => window.clearInterval(timer);
@@ -28,6 +32,19 @@ export function KioskScreen({ deviceId }: { deviceId: string }) {
 
   const webUrl = origin ? `${origin}/print/${encodeURIComponent(deviceId)}` : "";
   const telegramUrl = useMemo(() => createTelegramUrl(deviceId), [deviceId]);
+
+  async function openCopy() {
+    setCopyBusy(true); setCopyError("");
+    try {
+      const port = process.env.NEXT_PUBLIC_KIOSK_LOOPBACK_PORT ?? "17654";
+      const response = await fetch(`http://127.0.0.1:${port}/copy-session`, { method: "POST", cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message ?? "Копирование временно недоступно");
+      setCopySession({ id: result.id, token: result.token });
+      setMethod("copy");
+    } catch { setCopyError("Не удалось подключиться к сканеру. Обратитесь к оператору"); }
+    finally { setCopyBusy(false); }
+  }
 
   return (
     <main className="kiosk-shell">
@@ -39,7 +56,7 @@ export function KioskScreen({ deviceId }: { deviceId: string }) {
         </div>
       </header>
 
-      {method === null ? (
+      {method === "copy" && copySession ? <CopyFlow sessionId={copySession.id} token={copySession.token} onExit={() => { setCopySession(null); setMethod(null); }} /> : method === null ? (
         <section className="kiosk-content" aria-labelledby="kiosk-title">
           <div className="kiosk-intro">
             <p className="eyebrow">Печать документов</p>
@@ -57,7 +74,13 @@ export function KioskScreen({ deviceId }: { deviceId: string }) {
               <span className="method-copy"><strong>Через Telegram</strong><small>{telegramUrl ? "Отправить файл боту" : "Скоро появится"}</small></span>
               <span className="method-arrow" aria-hidden="true">→</span>
             </button>
+            <button className="method-card" type="button" onClick={() => void openCopy()} disabled={copyBusy || !printer?.scannerAvailable}>
+              <span className="method-icon" aria-hidden="true"><CopyIcon /></span>
+              <span className="method-copy"><strong>Копирование</strong><small>{printer?.scannerAvailable ? "Сканировать и распечатать" : printer?.scannerState === "busy" ? "Сканер занят" : "Сканер недоступен"}</small></span>
+              <span className="method-arrow" aria-hidden="true">→</span>
+            </button>
           </div>
+          {copyError && <p className="kiosk-error method-error" role="alert">{copyError}</p>}
         </section>
       ) : (
         <section className="kiosk-content kiosk-qr-view" aria-labelledby="qr-title">
@@ -115,4 +138,8 @@ function PhoneIcon() {
 
 function TelegramIcon() {
   return <svg viewBox="0 0 24 24" fill="none"><path d="m20.2 4.2-3 15.1c-.2 1-1 1.2-1.8.7l-4.6-3.4-2.2 2.1c-.3.3-.5.5-1 .5l.3-4.7 8.6-7.8c.4-.3-.1-.5-.6-.2L5.3 13.2.8 11.8c-1-.3-1-1 .2-1.5L18.6 3.5c.8-.3 1.5.2 1.6.7Z" fill="currentColor"/></svg>;
+}
+
+function CopyIcon() {
+  return <svg viewBox="0 0 24 24" fill="none"><path d="M6 3.5h12v8H6zM4 12.5h16v6H4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><path d="M7.5 16h9M8 7.5h8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { deviceAvailable } from "./device";
 import type { DeviceRecord } from "./types";
 
-const device: DeviceRecord = { id: "printer-001", tokenHash: "", cupsQueue: "queue", lastSeen: new Date().toISOString(), printMode: "dry-run", printerState: "idle", printerStateReasons: [] };
+const device: DeviceRecord = { id: "printer-001", tokenHash: "", cupsQueue: "queue", lastSeen: new Date().toISOString(), printMode: "dry-run", printerState: "idle", printerStateReasons: [], scannerState: "idle", scannerStateReason: null };
 
 describe("device availability", () => {
   it("accepts a recent dry-run heartbeat", () => expect(deviceAvailable(device)).toBe(true));

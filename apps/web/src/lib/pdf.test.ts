@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { mergePdfPages, validatePdf } from "./pdf";
+import { mergePdfPages, scanJpegToA4Pdf, validatePdf } from "./pdf";
 
 describe("PDF validation", () => {
   it("counts pages from a valid PDF", async () => {
@@ -20,5 +20,8 @@ describe("PDF validation", () => {
       { bytes: await second.save(), selectedPages: [1] },
     ]);
     await expect(validatePdf(merged)).resolves.toBe(2);
+  });
+  it("rejects non-JPEG scan content", async () => {
+    await expect(scanJpegToA4Pdf(Buffer.from("not a jpeg"))).rejects.toThrow("INVALID_SCAN");
   });
 });

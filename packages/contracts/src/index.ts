@@ -5,6 +5,8 @@ export const MAX_FILE_SIZE = 20 * 1024 * 1024;
 export const MAX_PAGES = 100;
 export const MAX_COPIES = 10;
 export const MAX_DOCUMENTS = 5;
+export const MAX_COPY_PAGES = 20;
+export const MAX_SCAN_PAGE_SIZE = 8 * 1024 * 1024;
 export const PRICE_PER_BW_PAGE_MINOR = 100;
 export const CURRENCY = "TJS" as const;
 
@@ -77,7 +79,33 @@ export const heartbeatSchema = z.object({
   printMode: printModeSchema,
   printerState: z.enum(["idle", "processing", "stopped", "unavailable"]),
   printerStateReasons: z.array(z.string().max(120)).max(20),
+  scannerState: z.enum(["idle", "busy", "unavailable"]),
+  scannerStateReason: z.string().max(120).nullable(),
 });
+
+export const copySessionStatusSchema = z.enum(["collecting", "submitted", "cancelled", "expired"]);
+export type CopySessionStatus = z.infer<typeof copySessionStatusSchema>;
+
+export const copyPageStatusSchema = z.enum(["queued", "scanning", "ready", "failed", "deleted"]);
+export type CopyPageStatus = z.infer<typeof copyPageStatusSchema>;
+
+export const scanErrorSchema = z.enum([
+  "SCANNER_UNAVAILABLE",
+  "SCANNER_BUSY",
+  "SCAN_TIMEOUT",
+  "SCAN_FAILED",
+  "INVALID_SCAN",
+]);
+export type ScanError = z.infer<typeof scanErrorSchema>;
+
+export const copyCheckoutSchema = z.object({ copies: z.number().int().min(1).max(MAX_COPIES) });
+
+export type ClaimedScan = {
+  id: string;
+  sessionId: string;
+  deviceId: string;
+  uploadUrl: string;
+};
 
 export const agentUpdateSchema = z.object({
   status: z.enum(["printing", "completed", "failed"]),
